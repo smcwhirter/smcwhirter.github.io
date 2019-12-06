@@ -4,7 +4,7 @@ navbar:
   left:
     - text: "About Me"
       href: index.html
-    - text: "Case Study 01"
+    - text: "Case Study 1"
       href: Case_Study_1_R_Markdown.html
-    - text: "Case Study 02"
+    - text: "Case Study 2"
       href: DDSCaseStudy2RMarkdownFinal.html
