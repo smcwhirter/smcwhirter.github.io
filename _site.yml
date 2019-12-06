@@ -1,0 +1,10 @@
+name: "My-website"
+navbar:
+  title: "My Website"
+  left:
+    - text: "About Me"
+      href: index.html
+    - text: "Case Study 01"
+      href: Case_Study_1_R_Markdown.html
+    - text: "Case Study 02"
+      href: DDSCaseStudy2RMarkdown.html

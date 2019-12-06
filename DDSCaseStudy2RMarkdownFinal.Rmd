@@ -1,0 +1,572 @@
+---
+title: "DDS Case Study 2 RMarkdown"
+author: "Sean McWhirter"
+date: "11/30/2019"
+output: html_document
+---
+
+Hello and thank you for providing the opportunity to provide my insight on this challenge that the company is facing.  We will walk through the data set that was provided, look at some of the variables, build a classification model tha twill tell us the liklihood of an employee leaving, and finally, we will use linear regression to predict th monthly income of a set of employees.  
+
+#Upload data and take first look
+```{r}
+#File Upload
+work=read.csv("C:/Users/seans/Desktop/DDS/Unit 14 and 15 Case Study 2/CaseStudy2-data.csv", header=TRUE, sep=",", stringsAsFactors = TRUE)
+saveRDS(work, file ="work.Rds")
+readRDS(work, file ="work.Rds")
+#File for Classification Predictions
+Case2PredictionsSeanMcWhirter_Attrition=read.csv("C:/Users/seans/Desktop/DDS/Unit 14 and 15 Case Study 2/CaseStudy2CompSet No Attrition.csv", header=TRUE, sep=",", stringsAsFactors = TRUE)
+saveRDS(Case2PredictionsSeanMcWhirter_Attrition, file ="Case2PredictionsSeanMcWhirter_Attrition.Rds")
+readRDS(Case2PredictionsSeanMcWhirter_Attrition, file ="Case2PredictionsSeanMcWhirter_Attrition.Rds")
+#File for Linear Regression Predictions
+Case2PredictionsSeanMcWhirter=read.csv("C:/Users/seans/Desktop/DDS/Unit 14 and 15 Case Study 2/CaseStudy2CompSetNoSalary.csv", header=TRUE, sep=",", stringsAsFactors = TRUE)
+
+saveRDS(Case2PredictionsSeanMcWhirter, file ="Case2PredictionsSeanMcWhirter_Attrition.Rds")
+readRDS(Case2PredictionsSeanMcWhirter, file ="Case2PredictionsSeanMcWhirter_Attrition.Rds")
+
+#Packages Used
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(GGally)
+library(ggthemes)
+library(doBy)
+library(e1071)
+library(kableExtra)
+library(knitr)
+library(mlbench)
+library(maps)
+library(openintro)
+library(stringr)
+library(usmap)
+library(ggplot2)
+library(class)
+library(e1071)
+library(caret)
+library(mlbench)
+library(caret)
+library(mlr)
+library(gplots)
+library(randomForest)
+library(plyr)
+library(corrplot) 
+library(purrr)
+library(skimr)
+
+str(work)
+skim(work)
+
+count(work$Attrition)
+
+#Check for missing values
+colSums(is.na(work))
+```
+
+
+#Here is a quick way we can visualize the data that was provided.  This will give us the starting point to begin our analysis. 
+#What we are looking for are variables where attirition stands out from the non-attrition values. 
+```{r}
+#Automated EDA
+# step 1, save target variable name
+
+target <- "Attrition"
+# step 2, save explanator variable names
+numvars <- work %>% keep(is.numeric) %>% colnames
+
+
+numplot <- function(df, explan, resp) {
+  ggplot(data = df) + geom_density(aes_string(x = explan, fill = resp), alpha = 0.5)
+}
+
+numplot(work, explan = "MonthlyIncome", resp = "Attrition")
+numplot(work, explan = "MonthlyIncome", resp = "Attrition")
+
+plotlist <- lapply(numvars, function(x) numplot(work, x, "Attrition"))
+
+
+png()
+lapply(numvars, function(x) numplot(work, x, "Attrition"))
+dev.off()
+
+library(cowplot)
+plot_grid(plotlist = plotlist)
+
+
+# categorical vs categorical
+ggplot(data = work) + geom_bar(aes(x = MonthlyIncome, fill = Attrition), position = "fill", alpha = 0.9) + coord_flip()
+
+
+ones <- rep(1, nrow(work))
+zeroes <- rep(0, nrow(work))
+onezeroes <- c(ones, zeroes)
+
+work$rcat <- sample(onezeroes, nrow(work))
+
+
+ggplot(data = work) + geom_bar(aes(x = MonthlyIncome, fill = Attrition), position = "fill", alpha = 0.9) + coord_flip()
+
+# step 1: Name target variable:
+
+target <- "Attrition"
+
+# step 2: name explanatory vars
+
+expls <- work %>% keep(is.factor) %>% colnames
+
+
+catplot <- function(df, x,y){
+  ggplot(data = df, aes_string(x = x, fill = y)) + 
+    geom_bar(position = "fill", alpha = 0.9) + 
+    coord_flip()
+}
+
+
+plotlist2 <- lapply(expls, function(x) catplot(work, x, target))
+plot_grid(plotlist = plotlist2)
+
+```
+
+#Additional EDA - Scatter Plots
+#Here we are trying to see if we can gain any further insights into how these variables interact with attrition. 
+```{r}
+#Plots to see what is correlated with Attrition)
+ggplot(work, aes(x=MonthlyRate, y=Attrition,color=JobRole))+geom_point(position="jitter")
+ggplot(work, aes(x=MonthlyIncome, y=Attrition,color=JobRole))+geom_point(position="jitter")
+ggplot(work, aes(x=JobSatisfaction, y=Attrition,color=JobRole))+geom_point(position="jitter")
+ggplot(work, aes(x=PercentSalaryHike, y=Attrition,color=JobRole))+geom_point(position="jitter")
+ggplot(work, aes(x=EnvironmentSatisfaction, y=Attrition,color=JobRole))+geom_point(position="jitter")
+ggplot(work, aes(x=JobSatisfaction, y=Attrition,color=JobRole))+geom_point(position="jitter")
+ggplot(work, aes(x=RelationshipSatisfaction, y=Attrition,color=JobRole))+geom_point(position="jitter")
+ggplot(work, aes(x=TotalWorkingYears, y=Attrition,color=JobRole))+geom_point(position="jitter")
+ggplot(work, aes(x=WorkLifeBalance, y=Attrition,color=JobRole))+geom_point(position="jitter")
+ggplot(work, aes(x=YearsInCurrentRole, y=Attrition,color=JobRole))+geom_point(position="jitter")
+ggplot(work, aes(x=YearsSinceLastPromotion, y=Attrition,color=JobRole))+geom_point(position="jitter")
+ggplot(work, aes(x=JobLevel, y=Attrition,color=JobRole))+geom_point(position="jitter")
+ggplot(work, aes(x=DistanceFromHome, y=Attrition,color=JobRole))+geom_point(position="jitter")
+ggplot(work, aes(x=Education, y=Attrition,color=JobRole))+geom_point(position="jitter")
+
+#Checking if Travel Rate has an impact
+ggplot(work, aes(x=MonthlyRate, y=Attrition,color=BusinessTravel))+geom_point(position="jitter")
+ggplot(work, aes(x=MonthlyIncome, y=Attrition,color=BusinessTravel))+geom_point(position="jitter")
+ggplot(work, aes(x=JobSatisfaction, y=Attrition,color=BusinessTravel))+geom_point(position="jitter")
+ggplot(work, aes(x=PercentSalaryHike, y=Attrition,color=BusinessTravel))+geom_point(position="jitter")
+ggplot(work, aes(x=EnvironmentSatisfaction, y=Attrition,color=BusinessTravel))+geom_point(position="jitter")
+ggplot(work, aes(x=JobSatisfaction, y=Attrition,color=BusinessTravel))+geom_point(position="jitter")
+ggplot(work, aes(x=RelationshipSatisfaction, y=Attrition,color=BusinessTravel))+geom_point(position="jitter")
+ggplot(work, aes(x=TotalWorkingYears, y=Attrition,color=BusinessTravel))+geom_point(position="jitter")
+ggplot(work, aes(x=WorkLifeBalance, y=Attrition,color=BusinessTravel))+geom_point(position="jitter")
+ggplot(work, aes(x=YearsInCurrentRole, y=Attrition,color=BusinessTravel))+geom_point(position="jitter")
+ggplot(work, aes(x=YearsSinceLastPromotion, y=Attrition,color=BusinessTravel))+geom_point(position="jitter")
+ggplot(work, aes(x=JobLevel, y=Attrition,color=BusinessTravel))+geom_point(position="jitter")
+ggplot(work, aes(x=DistanceFromHome, y=Attrition,color=BusinessTravel))+geom_point(position="jitter")
+ggplot(work, aes(x=Education, y=Attrition,color=BusinessTravel))+geom_point(position="jitter")
+
+#Boxplots of data
+ggplot(work, aes(x=Attrition, y=MonthlyRate))+geom_boxplot()
+ggplot(work, aes(x=Attrition, y=MonthlyIncome))+geom_boxplot()
+ggplot(work, aes(x=Attrition, y=JobSatisfaction))+geom_boxplot()
+ggplot(work, aes(x=Attrition, y=PercentSalaryHike))+geom_boxplot()
+ggplot(work, aes(x=Attrition, y=EnvironmentSatisfaction))+geom_boxplot()
+ggplot(work, aes(x=Attrition, y=JobSatisfaction))+geom_boxplot()
+ggplot(work, aes(x=Attrition, y=RelationshipSatisfaction))+geom_boxplot()
+ggplot(work, aes(x=Attrition, y=TotalWorkingYears))+geom_boxplot()
+ggplot(work, aes(x=Attrition, y=WorkLifeBalance))+geom_boxplot()
+ggplot(work, aes(x=Attrition, y=YearsInCurrentRole))+geom_boxplot()
+ggplot(work, aes(x=Attrition, y=YearsSinceLastPromotion))+geom_boxplot()
+ggplot(work, aes(x=Attrition, y=JobLevel))+geom_boxplot()
+ggplot(work, aes(x=Attrition, y=DistanceFromHome))+geom_boxplot()
+
+```
+
+
+#Here, we drop the variables that have only one value.  Variables with no standard deviation are of no use to us in this analysis. 
+```{r}
+#Drop variables with no standard deviation
+work <- subset(work, select = -c(EmployeeCount, StandardHours, Over18))
+Case2PredictionsSeanMcWhirter_Attrition <- subset(Case2PredictionsSeanMcWhirter_Attrition, select = -c(EmployeeCount, StandardHours, Over18))
+```
+
+
+#With the correlation plot below, we are inspecting correlation between numeric variables.  As we can see, there are quite a few variables that are correlated with one another.  
+#This could pose a problem, so we will attempt to deal with them later on if they become problematic. 
+```{r}
+#corrplot
+
+work %>% keep(is.numeric)%>% na.omit %>% cor %>% corrplot("upper", addCoef.col = "white", number.digits = 2,
+			 number.cex = 0.5, method="square",
+			 order="hclust", title="Variable Corr Heatmap",
+			 tl.srt=90, tl.cex = 0.8,)
+```
+
+#Feature Engineering attempt.  The goal here was to combine differnet variables to try and pull the attrition density away from the non-attrition.  
+#Quite a few hours went into this, however no beneficial outcome came of it due to my lack of knowledge in Feature Engineering.
+```{r}
+work_test<-work
+
+work_test<-work_test%>%mutate(IncLevYears=((JobLevel+TotalWorkingYears+YearsAtCompany)*Age))
+work_test<-work_test%>%mutate(IncLevYears2=(YearsSinceLastPromotion+YearsAtCompany))
+work_test<-work_test%>%mutate(IncLevYears3=(JobInvolvement+log(MonthlyIncome)+JobLevel+TotalWorkingYears+YearsAtCompany+YearsInCurrentRole))
+work_test<-work_test%>%mutate(IncLevYears4=NumCompaniesWorked+Age+YearsSinceLastPromotion)
+
+#work<-work%>%mutate(CoRolePro=YearsInCurrentRole*YearsAtCompany*YearsSinceLastPromotion)
+work_test<-work_test%>%mutate(CoRolePro2=(YearsSinceLastPromotion+YearsWithCurrManager+YearsAtCompany))
+
+
+#work<-work%>%mutate(test=(((MonthlyIncome*JobInvolvement)/TotalWorkingYears)
+
+
+numplot <- function(df, explan, resp) {
+  ggplot(data = df) + geom_density(aes_string(x = explan, fill = resp), alpha = 0.5)
+}
+
+numplot(work_test, explan = "IncLevYears", resp = "Attrition")
+numplot(work_test, explan = "IncLevYears2", resp = "Attrition")
+numplot(work_test, explan = "IncLevYears3", resp = "Attrition")
+numplot(work_test, explan = "IncLevYears4", resp = "Attrition")
+numplot(work_test, explan = "CoRolePro2", resp = "Attrition")
+#numplot(work, explan = "test", resp = "Attrition")
+work_test%>%ggplot(aes(x=IncLevYears3, y=CoRolePro2, color=Attrition))+geom_point(position="jitter")
+```
+
+
+
+#Here we are converting the factored variables into integer to be used with Knn
+```{r}
+
+#Converting for the training set
+work$JobRole <- as.integer(work$JobRole)
+work$OverTime <- as.integer(work$OverTime)
+work$BusinessTravel <- as.integer(work$BusinessTravel)
+work$Department <- as.integer(work$Department)
+work$EducationField <- as.integer(work$EducationField)
+work$MaritalStatus <- as.integer(work$MaritalStatus)
+work$OverTime <- as.integer(work$OverTime)
+work$Gender <- as.integer(work$Gender)
+
+#Converting for the test set
+Case2PredictionsSeanMcWhirter_Attrition$JobRole <- as.integer(Case2PredictionsSeanMcWhirter_Attrition$JobRole)
+Case2PredictionsSeanMcWhirter_Attrition$OverTime <- as.integer(Case2PredictionsSeanMcWhirter_Attrition$OverTime)
+Case2PredictionsSeanMcWhirter_Attrition$BusinessTravel <- as.integer(Case2PredictionsSeanMcWhirter_Attrition$BusinessTravel)
+Case2PredictionsSeanMcWhirter_Attrition$Department <- as.integer(Case2PredictionsSeanMcWhirter_Attrition$Department)
+Case2PredictionsSeanMcWhirter_Attrition$EducationField <- as.integer(Case2PredictionsSeanMcWhirter_Attrition$EducationField)
+Case2PredictionsSeanMcWhirter_Attrition$MaritalStatus <- as.integer(Case2PredictionsSeanMcWhirter_Attrition$MaritalStatus)
+Case2PredictionsSeanMcWhirter_Attrition$OverTime <- as.integer(Case2PredictionsSeanMcWhirter_Attrition$OverTime)
+Case2PredictionsSeanMcWhirter_Attrition$Gender <- as.integer(Case2PredictionsSeanMcWhirter_Attrition$Gender)
+```
+
+
+#Standardize data for KNN
+```{r}
+##Standardize all int columns
+work<-work%>%mutate_if(is.numeric,scale)
+
+#For the blank set, we need to keep the ID value as-is so we can use it with our final prediction output.
+Case2PredictionsSeanMcWhirter_Attrition<-Case2PredictionsSeanMcWhirter_Attrition%>%mutate_at(vars(-ID),scale)
+
+#Confirm it worked and get final column numbers
+#str(work)
+#str(Case2PredictionsSeanMcWhirter_Attrition)
+#skim(work_norm2)
+
+```
+
+
+#KNN Variable Selection--This will run all of the variables and produce the most important ones. 
+```{r}
+#install.packages("ISLR")
+#library(ISLR)
+#library(caret)
+set.seed(300)
+#Spliting data as training and test set. Using createDataPartition() function from caret
+indxTrain <- createDataPartition(y = work$Attrition,p = 0.75,list = FALSE)
+training <- work[indxTrain,]
+testing <- work[-indxTrain,]
+
+#Checking distibution in origanl data and partitioned data
+prop.table(table(training$Attrition)) * 100
+
+prop.table(table(testing$Attrition)) * 100
+
+prop.table(table(work$Attrition)) * 100
+
+
+#Training the model
+trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+set.seed(3333)
+knn_fit <- caret::train(Attrition ~., data = training, method = "knn",
+ trControl=trctrl,
+ preProcess = c("center", "scale"),
+ tuneLength = 10)
+
+knn_fit
+
+knnPredict<-predict(knn_fit, newdata=testing)
+confusionMatrix(knnPredict, testing$Attrition)
+
+#knn_fit 2 --> for ROC maximization
+ctrl <- trainControl(method = "repeatedcv", repeats = 5, classProbs=TRUE, summaryFunction = twoClassSummary)
+kNNFit4 <- caret::train(Attrition ~ ., 
+                data = work,
+                method = "knn",
+                tuneLength = 15,
+                trControl = ctrl,
+                preProc = c("center", "scale"))
+
+kNNFit4
+
+
+#####Ranking of variable importance
+
+library(mlbench)
+control <- caret::trainControl(method="repeatedcv", number=10, repeats=3)
+
+#Train Model
+model<- caret::train(Attrition ~ . , data=work, method="lvq", preProcess="scale" , trControl=control)
+
+
+#Importance estimate
+importance<-varImp(model, scale=FALSE)
+print(importance)
+plot(importance)
+
+
+```
+
+#Here we will rank the variables by importance.  This is just another model we can use to confirm the variable importance using Recursive Feature Elimination
+```{r}
+####Ranking of variable importance via Recursive Feature Elimination (RFE)
+set.seed(7)
+# define the control using a random forest selection function
+control <- rfeControl(functions=rfFuncs, method="cv", number=3)
+# run the RFE algorithm
+results <- rfe(work[,3:32], work[,2], sizes=c(3:32), rfeControl=control)
+# summarize the results
+#print(results)
+# list the chosen features
+predictors(results)
+# plot the results
+plot(results, type=c("g", "o"))
+```
+
+
+
+```{r}
+#str(work)
+```
+
+
+
+######   KNN
+```{r}
+
+#KNN 
+set.seed(100)
+splitPerc = .70
+
+##If we needed to ensure we are omitting NAs
+#work <- work_norm2 %>% na.omit() 
+
+#test/train split
+trainIndices = sample(1:dim(work)[1],round(splitPerc * dim(work)[1]))
+train = work[trainIndices,]
+test = work[-trainIndices,]
+
+var1=22
+var2=19
+var3=26
+var4=16
+var5=15
+var6=18
+k_num=3
+
+#KNN Test
+classifications = knn(train[,c(var1, var2, var3, var4, var5, var6)],test[,c(var1, var2, var3, var4, var5, var6)],train$Attrition, prob = TRUE, k = k_num)
+table(classifications,test$Attrition)
+CM1=confusionMatrix(table(classifications, test$Attrition))
+
+
+#Copy of knn from function
+classifications = knn(train[,c(var1, var2, var3, var4, var5, var6)],test[,c(var1, var2, var3, var4, var5, var6)],train$Attrition, prob = TRUE, k = k_num)
+table(test$Attrition,classifications)
+CM2 = confusionMatrix(table(test$Attrition,classifications))
+  
+## Loop for many k and one training / test partition--determining the optimal number of k.
+iterations=50
+accs = data.frame(accuracy = numeric(iterations), sensitivity=numeric(iterations), specificity=numeric(iterations), k = numeric(iterations))
+for(i in 1:iterations)
+{
+  classifications = knn(train[,c(var1, var2, var3, var4, var5, var6)],test[,c(var1, var2, var3, var4, var5, var6)],train$Attrition, prob = TRUE, k = i)
+  table(classifications,test$Attrition)
+  CM = confusionMatrix(table(classifications, test$Attrition))
+  accs$accuracy[i] = CM$overall[1]
+  accs$sensitivity[i]=CM$byClass[1]
+  accs$specificity[i]=CM$byClass[2]
+  accs$k[i] = i
+}
+plot(accs$k,accs$accuracy, type = "l", xlab = "k", ylab="Accuracy")
+plot(accs$k,accs$sensitivity, type = "l", xlab = "k", ylab="sensitivity")
+plot(accs$k,accs$specificity, type = "l", xlab = "k", ylab="specificity")
+
+accs
+CM1
+CM2
+
+#The ouput from the graph below shows that the optimal K=3
+```
+
+
+#### KNN for k-iterations and k-test/training sets
+```{r}
+##Loop for many k values and many test/training sets.  This will tell us how our classifier acts over may differnet random samples of training/test sets as well as k-values.
+iterations=50
+numks=30
+
+masterAcc = matrix(nrow=iterations, ncol=numks)
+massterSens=matrix(nrow=iterations, ncol=numks)
+masterSpec=matrix(nrow=iterations, ncol=numks)
+
+for(j in 1:iterations)
+{
+accs=data.frame(accuracy=numeric(30), k=numeric(30))
+trainIndicies=sample(1:dim(work)[1],round(splitPerc*dim(work)[1]))
+train=work[trainIndicies,]
+test=work[-trainIndicies,]
+for(i in 1:numks)
+{
+classifications=knn(train[,c(var1, var2, var3, var4, var5, var6)], test[,c(var1, var2, var3, var4, var5, var6)], train$Attrition, prob=TRUE, k=i)
+table(classifications, test$Attrition)
+CM=confusionMatrix(table(classifications, test$Attrition))
+masterAcc[j,i]=CM$overall[1]
+massterSens[j,i]=CM$byClass[1]
+masterSpec[j,i]=CM$byClass[2]
+}
+  
+}
+
+MeanAcc = colMeans(masterAcc)
+MeanSens = colMeans(massterSens)
+MeanSpec = colMeans(masterSpec)
+
+plot(seq(1,numks,1),MeanAcc, type = "l")
+plot(seq(1,numks,1),MeanSens, type = "l")
+plot(seq(1,numks,1),MeanSpec, type = "l")
+
+#The outcome confirms that lower k-value yields higher specificity 
+```
+
+#Use the classifier to make the predictions for the blank data set
+```{r}
+#Make Attrition numeric for "predict" to work
+#set.seed(400)
+#Dropping All columns but necessary ones
+#work_pred <- subset(work, select = c(ID, OverTime, MonthlyIncome, StockOptionLevel, JobRole, JobLevel, MaritalStatus))
+
+
+#Output of kNN fit
+#knnFit
+
+#Case2PredictionsSeanMcWhirter_Attrition <- predict(knnFit,newdata = Case2PredictionsSeanMcWhirter_Attrition )
+#Make Predictions
+#Predictions=predict(classifications, newdata=Case2PredictionsSeanMcWhirter_Attrition)
+#Case2PredictionsSeanMcWhirter_Attrition<-data.frame(ID=Case2PredictionsSeanMcWhirter_Attrition$ID, Predicted_Income=Predictions)
+#Write predicitons to CSV for submission
+#write.csv(Case2PredictionsSeanMcWhirter_Attrition, file="Case2PredictionsSeanMcWhirter_Attrition.csv", row.names = FALSE)
+```
+
+#Use the classifier to make the predictions for the blank data set
+```{r}
+#train_pred <- subset(work, select = c(OverTime, MonthlyIncome, StockOptionLevel, JobRole, JobLevel, MaritalStatus, Attrition))
+#predictions <- subset(Case2PredictionsSeanMcWhirter_Attrition, select = c(OverTime, MonthlyIncome, StockOptionLevel, JobRole, JobLevel, MaritalStatus))
+
+#classification = knn(train_pred[,1:6], predictions[,1:6], train_pred$Attrition, k=3, prob=TRUE)
+#Case2PredictionsSeanMcWhirter_Attrition$Attrition <- data.frame(classification)
+#Case2PredictionsSeanMcWhirter_Attrition$Attrition
+#Case2PredictionsSeanMcWhirter_Attrition<-data.frame(ID=Case2PredictionsSeanMcWhirter_Attrition$ID, Case2PredictionsSeanMcWhirter_Attrition$Attrition)
+#write.csv(Case2PredictionsSeanMcWhirter_Attrition, file="Case2PredictionsSeanMcWhirter_Attrition.csv", row.names = FALSE)
+
+```
+
+
+## Linear Regression for Monthly Income
+```{r}
+#Reset Data
+work=read.csv("C:/Users/seans/Desktop/DDS/Unit 14 and 15 Case Study 2/CaseStudy2-data.csv", header=TRUE, sep=",", stringsAsFactors = TRUE)
+
+#Drop variables with no standard deviation as well as any income data
+work <- subset(work, select = -c(EmployeeCount, StandardHours, Over18, ID, MonthlyRate, DailyRate))
+
+
+library(olsrr)
+#Model for Monthly Income
+model<-lm(MonthlyIncome ~ . , data=work)
+# use stepwise variable selection (ols_step_forward_p(model))
+ols_step_both_p(model)
+
+```
+
+
+
+
+#Regression Cross Validation - Stepwise
+```{r}
+#Using stepwise selection 
+
+#Here we are chanign th factored variables to numeric so cross-validation will work
+work$Attrition <- as.integer(work$Attrition)
+work$JobRole <- as.integer(work$JobRole)
+work$OverTime <- as.integer(work$OverTime)
+work$BusinessTravel <- as.integer(work$BusinessTravel)
+work$Department <- as.integer(work$Department)
+work$EducationField <- as.integer(work$EducationField)
+work$MaritalStatus <- as.integer(work$MaritalStatus)
+work$OverTime <- as.integer(work$OverTime)
+work$Gender <- as.integer(work$Gender)
+
+trainIndicies=sample(1:dim(work)[1],round(.75*dim(work)[1]))
+train=work[trainIndicies,]
+test=work[-trainIndicies,]
+
+model1_fit=lm(MonthlyIncome~JobLevel+TotalWorkingYears+BusinessTravel, data=train)
+summary(model1_fit)
+
+model1_preds=predict(model1_fit, newdata=test)
+as.data.frame(model1_preds)
+
+#Find MSPE
+MSPE=data.frame(Observed=test$MonthlyIncome, Predicted=model1_preds)
+MSPE$Residual=MSPE$Observed-MSPE$Predicted
+MSPE$SquaredResidual=MSPE$Residual^2
+#MSPE
+
+mean(MSPE$SquaredResidual)
+
+#The cross-validation yeielded a very acceptable Root MSPE of 1,311--This fits our requirements
+```
+
+#Use the model to predict for the data set with no income figures
+```{r}
+#Predict for No Salary CSV
+
+#Reset Datasets so they are same length
+#work=read.csv("C:/Users/seans/Desktop/DDS/Unit 14 and 15 Case Study 2/CaseStudy2-data.csv", header=TRUE, sep=",", stringsAsFactors = TRUE)
+
+#Upload No Salary CSV
+#Case2PredictionsSeanMcWhirter=read.csv("C:/Users/seans/Desktop/DDS/Unit 14 and 15 Case Study 2/CaseStudy2CompSetNoSalary.csv", header=TRUE, sep=",", stringsAsFactors = TRUE)
+#Case2PredictionsSeanMcWhirter$Attrition <- as.integer(Case2PredictionsSeanMcWhirter$Attrition)
+#Case2PredictionsSeanMcWhirter$JobRole <- as.integer(Case2PredictionsSeanMcWhirter$JobRole)
+#Case2PredictionsSeanMcWhirter$OverTime <- as.integer(Case2PredictionsSeanMcWhirter$OverTime)
+#Case2PredictionsSeanMcWhirter$BusinessTravel <- as.integer(Case2PredictionsSeanMcWhirter$BusinessTravel)
+#Case2PredictionsSeanMcWhirter$Department <- as.integer(Case2PredictionsSeanMcWhirter$Department)
+#Case2PredictionsSeanMcWhirter$EducationField <- as.integer(Case2PredictionsSeanMcWhirter$EducationField)
+#Case2PredictionsSeanMcWhirter$MaritalStatus <- as.integer(Case2PredictionsSeanMcWhirter$MaritalStatus)
+#Case2PredictionsSeanMcWhirter$OverTime <- as.integer(Case2PredictionsSeanMcWhirter$OverTime)
+#Case2PredictionsSeanMcWhirter$Gender <- as.integer(Case2PredictionsSeanMcWhirter$Gender)
+#Use model to make predictions
+#model1_fit=lm(MonthlyIncome~JobLevel+TotalWorkingYears+BusinessTravel, data=train)
+#Predictions=predict(model1_fit, newdata=Case2PredictionsSeanMcWhirter)
+#Case2PredictionsSeanMcWhirter<-data.frame(ID=Case2PredictionsSeanMcWhirter$ID, Predicted_Income=Predictions)
+
+#Write predicitons to CSV for submission
+#write.csv(Case2PredictionsSeanMcWhirter, file="Case2Predictions_SeanMcWhirter.csv", row.names = FALSE)
+
+```
+

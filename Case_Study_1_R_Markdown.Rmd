@@ -1,0 +1,437 @@
+---
+title: "Case Study 01"
+author: "Sean McWhirter"
+date: "10/10/2019"
+output: html_document
+---
+#Hello and thank you for joining Sid and me to review some insights tha twe were able to gain with the data that this committee has given us.  We will be covering all of the initial questions that you all posed in the beginning of this process, as well as some other potentially valuable information that could be of use to you all here at Budweiser.  
+
+#Question 1: How many breweries are present in each state?
+```{r}
+#File Upload
+brew=read.csv("C:/Users/seans/Desktop/DDS/Unit 8 and 9 Case Study 1/Breweries.csv", header=TRUE, sep=",")
+saveRDS(brew, file ="brew.Rds")
+readRDS(brew, file ="brew.Rds")
+#Packages Used
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(GGally)
+library(ggthemes)
+library(doBy)
+library(e1071)
+library(kableExtra)
+library(knitr)
+library(ggmap)
+library(maps)
+library(openintro)
+library(stringr)
+library(usmap)
+library(ggplot2)
+library(class)
+library(e1071)
+library(caret)
+
+brew%>%ggplot(mapping=aes(x=State, stat="count"))+geom_bar()+ggtitle("Brewery Count by State")+theme_economist()+theme(axis.text.x=element_text(angle=90))
+```
+
+
+
+
+
+
+
+
+
+
+
+#Question 2: Merge beer data with the breweries data. Print the first 6 observations and the last six observations to check the merged file.
+```{r}
+#The code below merges the two datasets
+
+#Upload Beers.csv
+beer=read.csv("C:/Users/seans/Desktop/DDS/Unit 8 and 9 Case Study 1/Beers.csv")
+saveRDS(brew, file ="beer.Rds")
+readRDS(brew, file ="beer.Rds")
+
+#Changing the names of the Brewery ID column to the same name for the Join
+colnames(brew)[colnames(brew)=="Brew_ID"]<-"Brewery_ID"
+colnames(beer)[colnames(beer)=="Brewery_id"]<-"Brewery_ID"
+
+#Differentiate Names
+colnames(beer)[colnames(beer)=="Beer Name"]<-"Beer_Name"
+colnames(brew)[colnames(brew)=="Brewery Name"]<-"Brewery_Name"
+
+#Merge
+beerbybrew=merge(beer,brew,by="Brewery_ID", all=TRUE)
+head(beerbybrew)
+tail(beerbybrew)
+
+#The output below shows the first six and last six rows of the merged data set.
+```
+
+
+
+
+
+
+
+# Question 3: Address the missing values in each column
+```{r}
+#The code below is used to identify the number of missing values in each column.
+colSums(is.na(beerbybrew))
+
+#ABV is missing 62 values, and IBU is mising 1005 values.  Even if we need to filter out all 1005 misisng IBU observations, we would still have 1,405.  If the ABV missing values do not overlap, we would still have 1,343, which is a significant smaple size.
+```
+
+
+
+
+
+
+#Question 4: Compute the median alcohol content and international bitterness unit for each state. Plot a bar chart to compare.
+```{r}
+#Changing the ABV value to numeric
+beerbybrew$ABV<-as.numeric(as.character(beerbybrew$ABV))
+beerbybrew1=beerbybrew%>%filter(!is.na(ABV))
+colSums(is.na(beerbybrew1))
+
+#ABV data grouped by State
+abvmed1=beerbybrew1%>%group_by(State)
+
+#Box Plot of ABV by State
+abvmed1%>%ggplot(mapping=aes(x=State, y=ABV))+geom_boxplot()+theme(axis.text.x=element_text(angle=90))
+
+###Median of ABV by state###
+abvmed=summaryBy(ABV~State, data=beerbybrew1, FUN=median)
+abvmed
+
+###Bar chart of median ABV by State###
+abvmed%>%ggplot(mapping=aes(x=State, y=ABV.median))+geom_col()+theme(axis.text.x=element_text(angle=90))+ggtitle("Median ABV by State")+labs(x="State", y="Median ABV")
+
+```
+
+
+
+
+#Median IBU by state
+```{r}
+### Median IBU by State###
+beerbybrew$IBU<-as.numeric(as.character(beerbybrew$IBU))
+beerbybrew2=beerbybrew%>%filter(!is.na(IBU))
+
+
+#IBU data grouped by State
+ibumed1=beerbybrew2%>%group_by(State)
+
+#Box Plot of IBU by State
+ibumed1%>%ggplot(mapping=aes(x=State, y=IBU))+geom_boxplot()+theme(axis.text.x=element_text(angle=90))
+
+###Median of IBU by state###
+ibumed=summaryBy(IBU~State, data=beerbybrew2, FUN=median)
+#ibumed
+
+###Bar chart of median IBU by State###
+ibumed%>%ggplot(mapping=aes(x=State, y=IBU.median))+geom_col()+theme(axis.text.x=element_text(angle=90))
+
+```
+
+
+
+
+
+
+#Question #5: Which state has the maximum alcoholic (ABV) beer? Which state has the most bitter (IBU) beer?
+```{r}
+#Which state has the maximum ABV beer?  Wich state has the highest IBU beer?
+
+kable(beerbybrew[which.max(beerbybrew$ABV),])
+kable(beerbybrew[which.max(beerbybrew$IBU),])
+
+#According to the data, the state with the maximum ABV is Colorado with 12.8%.  The state with the highest IBU value is Oregon with 138 IBUs.
+```
+#Question 6: Comment on the statistics and distribution of the ABV variable 
+```{r}
+#Summary of the data
+summary(beerbybrew$ABV)
+
+#Histogram of the ABV variable
+hist(beerbybrew$ABV, main="ABV", xlab="Alcohol by Volume")
+
+
+#Looking at the data and the histogram, it seems that a vast majority of the beers have an ABV of less than 7%. Any value over 10% ABV seems to be extremely infrequent, which of course makes sence since beer is not supposed to be an extremely high ABV beverage. 
+```
+
+
+
+
+
+#Question 7:  Is there an apparent relationship between the bitterness of the beer and its alcoholic content? Draw a scatter plot.  Make your best judgment of a relationship and explain your answer.
+```{r}
+#Is there an apparent relationship between the bitterness of the beer and its alcoholic content? Draw a scatter plot.  
+
+beerbybrew%>%ggplot(mapping=aes(x=ABV, y=IBU))+geom_point()+geom_smooth()+theme_economist()
+
+#Looking at the scatter plot below, it does appear that there is a positively correlated relationship between ABV and IBU.  While it's not a perfectly straight line, the line below does show that there is in fact a relationship.  
+```
+
+
+
+
+
+#Question 8: Budweiser would also like to investigate the difference with respect to IBU and ABV between IPAs (India Pale Ales) and other types of Ale (any beer with “Ale” in its name other than IPA).  You decide to use KNN clustering to investigate this relationship.  Provide statistical evidence one way or the other. You can of course assume your audience is comfortable with percentages … KNN is very easy to understand.
+
+```{r}
+#Budweiser would also like to investigate the difference with respect to IBU and ABV between IPAs (India Pale Ales) and other types of Ale.
+
+
+#Creating factors of "India Pale Ale," "other Ale,' or "Other Type."
+beerbybrew$BeerType <- ifelse(grepl("Ale$", beerbybrew$Style, ignore.case = T), "Other Ale",
+ifelse(grepl("IPA$", beerbybrew$Style, ignore.case = T ), "India Pale Ale", "Other Type"))
+beerbybrew$BeerType<-as.factor(as.character(beerbybrew$BeerType))
+beerbybrew$ABV<-as.numeric(as.character(beerbybrew$ABV))
+beerbybrew$IBU<-as.numeric(as.character(beerbybrew$IBU))
+
+#head(beerbybrew)
+
+#Selecting for only IPAs and Other Ales.
+beerbybrew2=beerbybrew%>%filter(!is.na(BeerType) & !is.na(IBU) & !is.na(ABV))
+beerbybrew2=beerbybrew%>%filter(BeerType=="India Pale Ale" | BeerType=="Other Ale")
+
+
+```
+
+
+
+
+```{r}
+#Here we are going to use a model called k-NN (k-Nearest Neighbors) to predict whether a given beer would be classified as an "Indian Pale Ale" or "other Ale."  In short, this model plots an unknown data point in the midst of known data, then compares the number of "neighbors" it has, classifying it as the data type with the most neighbors.
+
+#The following code groups the beers by "India Pale Ale," "Other Ale," and "Other Type."
+beerbybrew$BeerType <- ifelse(grepl("Ale$", beerbybrew$Style, ignore.case = T), "Other Ale",
+ifelse(grepl("IPA$", beerbybrew$Style, ignore.case = T ), "India Pale Ale", "Other Type"))
+
+#Change BeerType to a factor and IBU/ABV to numeric
+beerbybrew$BeerType<-as.factor(as.character(beerbybrew$BeerType))
+beerbybrew$ABV<-as.numeric(as.character(beerbybrew$ABV))
+beerbybrew$IBU<-as.numeric(as.character(beerbybrew$IBU))
+
+#head(beerbybrew)
+
+#Filtering out any "na" values as well as the "Other Ales."
+beerbybrew2=beerbybrew%>%filter(!is.na(BeerType) & !is.na(IBU) & !is.na(ABV))
+beerbybrew2=beerbybrew%>%filter(BeerType=="India Pale Ale" | BeerType=="Other Ale")
+
+
+#KNN 
+set.seed(6)
+splitPerc = .75
+beerbybrew3 = beerbybrew2 %>% filter(BeerType == "India Pale Ale" | BeerType == "Other Ale")
+#summary(beerbybrew3)
+beerbybrew3 = droplevels(beerbybrew3, exclude = "Other Type")
+#summary(beerbybrew3)
+beerbybrew3 <- beerbybrew3 %>% na.omit()
+trainIndices = sample(1:dim(beerbybrew3)[1],round(splitPerc * dim(beerbybrew3)[1]))
+train = beerbybrew3[trainIndices,]
+test = beerbybrew3[-trainIndices,]
+
+#Testing the accuracy of differnet k-values
+# k = 3
+classifications = knn(train[,c(4,5)],test[,c(4,5)],train$BeerType, prob = TRUE, k = 3)
+table(classifications,test$BeerType)
+confusionMatrix(table(classifications,test$BeerType))
+# k = 5
+classifications = knn(train[,c(4,5)],test[,c(4,5)],train$BeerType, prob = TRUE, k = 5)
+table(test$BeerType,classifications)
+confusionMatrix(table(test$BeerType,classifications))
+# k = 10
+classifications = knn(train[,c(4,5)],test[,c(4,5)],train$BeerType, prob = TRUE, k = 10)
+table(test$BeerType,classifications)
+confusionMatrix(table(test$BeerType,classifications))
+# k = 20
+classifications = knn(train[,c(4,5)],test[,c(4,5)],train$BeerType, prob = TRUE, k = 20)
+table(test$BeerType,classifications)
+CM = confusionMatrix(table(test$BeerType,classifications))
+CM$overall[1]
+
+## Loop for many k and one training / test partition--determining the optimal number of k.
+iterations=200
+accs = data.frame(accuracy = numeric(iterations), k = numeric(iterations))
+for(i in 1:iterations)
+{
+  classifications = knn(train[,c(4,5)],test[,c(4,5)],train$BeerType, prob = TRUE, k = i)
+  table(test$BeerType,classifications)
+  CM = confusionMatrix(table(test$BeerType,classifications))
+  accs$accuracy[i] = CM$overall[1]
+  accs$k[i] = i
+}
+plot(accs$k,accs$accuracy, type = "l", xlab = "k", ylab="Accuracy")
+
+#k=105 since the accuracy graph seems to level off at a high point around there.
+classifications = knn(train[,c(4,5)],test[,c(4,5)],train$BeerType, prob = TRUE, k = 75)
+table(test$BeerType,classifications)
+CM = confusionMatrix(table(test$BeerType,classifications))
+CM
+
+#In the graph on the right, we can see how the accuracy of the model changes with the given number of data points, or "neighbors," taken into account.  As you can see, it plateaus shortly after 100 before dropping off.  Because this range holds a relatively stable accuracy (and at the highest point), we ran a model with k=105.  In the data output here you can see that the accuracy is almost 89%.
+```
+
+
+
+
+#Question 9 - Other Insights - Niaeve Bayes
+```{r}
+#We also tested wither a differnet model, the Naieve Bayes, would be a more accurate predictor.  This model is different in that it uses given data to predict an uknown factor using probabilities that are calculated from the known data.
+
+model = naiveBayes(beerbybrew3[,c(4,5)],beerbybrew3$BeerType)
+table(predict(model,beerbybrew3[,c(4,5)]),beerbybrew3$BeerType)
+CM = confusionMatrix(table(predict(model,beerbybrew3[,c(4,5)]),beerbybrew3$BeerType))
+CM
+iterations = 200
+masterAcc = matrix(nrow = iterations)
+splitPerc = .7 #Training / Test split Percentage
+for(j in 1:iterations)
+{
+  trainIndices = sample(1:dim(beerbybrew3)[1],round(splitPerc * dim(beerbybrew3)[1]))
+  train = beerbybrew3[trainIndices,]
+  test = beerbybrew3[-trainIndices,]
+  
+  model = naiveBayes(train[,c(4,5)],as.factor(train$BeerType))
+  table(predict(model,test[,c(4,5)]),as.factor(test$BeerType))
+  CM = confusionMatrix(table(predict(model,test[,c(4,5)]),as.factor(test$BeerType)))
+  masterAcc[j] = CM$overall[1]
+}
+MeanAcc = colMeans(masterAcc)
+MeanAcc
+
+#Below you can see that this model achieved a mean accuracy of approximately 86.3%--not quite as high as the accuracy we achieved from using the k-NN model. 
+```
+
+
+
+#Question 9 - Other Insights - ABV vs IBU by IPA or Other Ale
+```{r}
+#This graph shows the relationship between ABV and IBu when diferentiating between IPAs and Other Ales.  
+
+beerbybrew2%>%ggplot(mapping=aes(x=ABV, y=IBU, color=BeerType))+geom_point()+geom_smooth()+ggtitle("ABV vs IBU")+theme_economist()
+
+#As this graph shows, it appears that IPAs are significanlty higher in IBu score and at least marginaly higher in alcohol by volume. 
+```
+
+
+#Question 9 - Other Insights - ABV by Ounces?
+```{r}
+# One more thing we explored was whether or not there was a clear relationship between the ounces of the beer and its ABV.  
+beerbybrew2$Ounces<-as.factor(beerbybrew2$Ounces)
+
+#beerbybrew2=beerbybrew%>%filter(!is.na(BeerType) & !is.na(IBU) & !is.na(ABV))
+#beerbybrew2=beerbybrew%>%filter(BeerType=="India Pale Ale" | BeerType=="Other Ale")
+
+beerbybrew2%>%ggplot(mapping=aes(x=Ounces, y=ABV))+geom_boxplot(fill="red")+ggtitle("ABV by Ounces")+theme_economist()
+
+#We can see that it the median ABV value appears to increase as ounces increase, with the execption of 24 and 32 ounces. However, more in-depth statistical testing would need to be done in order to determine if there was a significant relationship. 
+```
+
+
+#Question 9 - Other Insights - Median ABV by State (continued)
+```{r}
+
+#In order to more clearly visualize the median ABV value for each state, we believed a heat map of the United States would be more efficient. 
+
+#Get Map Data
+states<-map_data("state")
+
+#Test plot of US
+#states%>%ggplot(mapping=aes(x=long, y=lat, group=group, fill=region))+geom_polygon(fill="white", color="black")
+
+#Get State names instead of abbreviations
+abvmed1=abvmed
+abvmed1$State<-as.character(abvmed1$State)
+
+#Get rid of white space on left of abbreviation
+abvmed1=abvmed1%>%mutate(State=str_trim(State))
+
+#Do mutation on ABV percentage and getting state full name
+abvmed2=abvmed1%>%mutate(State=abbr2state(State), ABV.median=ABV.median*100)
+#head(abvmed2)
+#changing state to lowercase
+abvmed3=abvmed2%>%mutate(State=tolower(State))
+#head(abvmed3)
+
+#left_join to get long and lat for each stae
+beerloc=left_join(states,abvmed3, by=c("region"="State"))
+
+#Change ABV.Median to factor
+beerloc$ABV.median<-as.numeric(beerloc$ABV.median)
+
+#Plot ABV median by state
+beerloc%>%ggplot(mapping=aes(x=long, y=lat, group=group, fill=ABV.median))+geom_polygon(color="black")+coord_map(projection="albers", lat0=39, lat1=45)+labs(title="Median ABV by State")+theme_map()+labs(fill="Median ABV %")
+
+#The map clearly shows thte states with higher ABV values.  ONe state that sticks out is Utah--it is significantly darker than the rest of the states. 
+
+```
+
+
+
+
+#Question 9 - Other Insights - Heat Map of Breweries by State
+```{r}
+#Heat map for breweries by state
+
+#One thing we thought might be beneficial to the committee is to see the population density of the breweries based on the date you had supplied us with.  It was stated in Anheuser-Busch's 2018 Annual Report that organic growth remainsthe number one goal.  However, prudnet acquisitions were in the top three strategies.  
+
+#Count the number of breweries per state
+library(plyr)
+brewst=count(brew$State)
+#brew=brew%>%as.numeric(as.character(brew$freq))
+
+
+#Get State names instead of abbreviations
+
+brewst$x<-as.character(brewst$x)
+
+################################MAKE A COLUMN OF BREWERY COUNT BY STATE###################################################3333
+
+
+#Get rid of white space on left of abbreviation
+brewst1=brewst%>%mutate(x=str_trim(x))
+
+#Do mutation on ABV percentage and getting state full name
+brewst1=brewst1%>%mutate(state1=abbr2state(x))
+#head(brewst1)
+#changing state to lowercase
+brewst1=brewst1%>%mutate(state2=tolower(state1))
+#head(brewst1)
+brewst2=brewst1%>%select(state2, freq)
+#head(brewst2)
+
+#left_join to get long and lat for each stae
+brewstate=left_join(states,brewst2, by=c("region"="state2"))
+#head(brewstate)
+#Change ABV.Median to factor
+brewstate$freq<-as.numeric(brewstate$freq)
+
+#Plot ABV median by state
+brewstate%>%ggplot(mapping=aes(x=long, y=lat, group=group, fill=freq))+geom_polygon(color="black")+coord_map(projection="albers", lat0=39, lat1=45)+labs(title="Number of Breweries by State")+theme_map()+labs(fill="# of Breweries")
+
+#Looking at the heat map below, we believe it may be benneficial to this commitee given acquisition being a main corporate strategy.  One example is Colorado.  It has clearly the highest number of craft breweries, and is also a state where Budweiser is lacking market share compared to Coors. A potential acquisition strategy could be to invest in both early-stage and established craft breweries that show potential in expanding the product line in not only Colorado, but the whole mountan region in general.  Give the purchasing power of Budweiser, and the small size of most craft breweries, it would be relatively easy for Budweiser to invest in multiple breweries without the affecting revenue reinvestment towards Budweiser's number one goal of organic growth.  
+```
+
+#Conclusion
+
+#Again, thank you all very much for your time today. We know that you are very busy individuals and we hope that this was beneficial.  To recap what we've concluded from this study:
+#1. we've looked at the numbe of breweries in each state.  The states with the largest number of breweries include: Colorado, California, and Michigan.
+#2. We've looked at the states with the highest ABV and IBu values: Colorado with the highest ABV at 12.8 and Oregon with the highest IBU value of 138.
+#3. We've looked at the summary statistics of the ABV value, noting that there is a mean of 5.99% and that a majorit of the craft beers have an ABV of 7% or less. 
+#4.  We've determined that there seems to be a positive linear relationship between IBU and ABV values, 
+#5.  We've utilized a model that will allow us to identify whether a beer is an IPA or Other Ale with approximatley 89% accuracy.
+#6.  We've compared the k-NN model with an alternative model to see which would be better-suited.
+#7.  We've Compared the ABV of the beers versus the ounzes they are served. 
+#8.  Finally, we have provided the committee with a map of the brewery concentrations in each state in order to facilite one of Budweiser's main strategic initiatives of acquisition.  
+
+#Thank you all again and we hope you have a great weekend.
+
+```{r}
+
+```
+

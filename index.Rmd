@@ -1,0 +1,23 @@
+---
+title: "My Website"
+author: "Sean McWhirter"
+date: "12/5/2019"
+output: html_document
+---
+
+
+# My Website
+
+Hello and welcome to my website!  My name is Sean McWhirter and I'm from Minneapolis, MN.  
+
+This page will display my work as I progress through the Data Science program at SMU.
+
+There is not much on here yet, but take a look around.  On this page you will find:
+
+Case Study 1: This is the R Markdown file for the first case study.
+
+Case Study 2:  Here you will find the RMD file for the second case study.
+
+# Here is the link to my Case Study 2 presentation: https://youtu.be/GTze_LtqRXQ
+
+# Also, here is the link to my Github repo containing all files: https://github.com/smcwhirter/CaseStudy2_DDS
